@@ -1,0 +1,251 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "clientId": {
+        "type": "securestring",
+        "metadata": {
+          "description": "Specifies the Client ID of the App registration to be used."
+        }
+      },
+      "clientSecret": {
+        "type": "securestring",
+        "metadata": {
+          "description": "Specifies the Client Secret of the App registration to be used."
+        }
+      }
+    },
+    "resources": [
+      {
+        "type": "Microsoft.Logic/workflows",
+        "apiVersion": "2019-05-01",
+        "name": "rps-alert-playbook",
+        "location": "[resourceGroup().location]",
+        "identity": {
+          "type": "SystemAssigned"
+        },
+        "properties": {
+          "definition": {
+            "$schema": "https://schema.management.azure.com/schemas/2016-06-01/microsoft.logic/workflows.json",
+            "contentVersion": "1.0.0.0",
+            "triggers": {
+              "Manual": {
+                "type": "Request",
+                "kind": "Http",
+                "inputs": {}
+              }
+            },
+            "actions": {
+              "LogToConsole": {
+                "type": "Compose",
+                "inputs": "High-rps-rule-one alert triggered! (Test Playbook)",
+                "runAfter": {}
+              },
+              "Get_Client_Id": {
+                "type": "ApiConnection",
+                "inputs": {
+                  "host": {
+                    "connection": {
+                      "name": "@parameters('$connections')['keyvault']['connectionId']"
+                    }
+                  },
+                  "method": "get",
+                  "path": "/secrets/Client-Id/value"
+                },
+                "runAfter": {}
+              },
+              "Get_Client_Secret": {
+                "type": "ApiConnection",
+                "inputs": {
+                  "host": {
+                    "connection": {
+                      "name": "@parameters('$connections')['keyvault']['connectionId']"
+                    }
+                  },
+                  "method": "get",
+                  "path": "/secrets/Client-Secret/value"
+                },
+                "runAfter": {
+                  "Get_Client_Id": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "Call_API": {
+                "type": "Http",
+                "inputs": {
+                  "method": "POST",
+                  "uri": "https://staging-netapp-cloud-account.auth0.com/oauth/token",
+                  "headers": {
+                    "Content-Type": "application/json"
+                  },
+                  "body": {
+                    "grant_type": "client_credentials",
+                    "audience": "https://api.cloud.netapp.com",
+                    "client_id": "@body('Get_Client_Id').value",
+                    "client_secret": "@body('Get_Client_Secret').value"
+                  }
+                },
+                "runAfter": {
+                  "Get_Client_Secret": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "Call_API_Rps": {
+                "type": "Http",
+                "inputs": {
+                  "method": "GET",
+                  "uri": "https://staging.snapcenter.cloudmanager.cloud.netapp.com/rps/v1/account/weyfg/connectors",
+                  "headers": {
+                    "Authorization": "@concat('Bearer ', body('Call_API')['access_token'])",
+                    "Content-Type": "application/json"
+                  },
+                  "query": {
+                    "discovered": "false"
+                  }
+                },
+                "runAfter": {
+                  "Call_API": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "Log_New_API_Response": {
+                "type": "Compose",
+                "inputs": "@body('Call_API_Rps')",
+                "runAfter": {
+                  "Call_API_Rps": [
+                    "Succeeded"
+                  ]
+                }
+              },
+              "Log_API_Response": {
+                "type": "Compose",
+                "inputs": "@body('Call_API')",
+                "runAfter": {
+                  "Call_API": [
+                    "Succeeded"
+                  ]
+                }
+              }
+            },
+            "parameters": {
+              "$connections": {
+                "type": "Object",
+                "defaultValue": {}
+              }
+            }
+          },
+          "parameters": {
+            "$connections": {
+              "value": {
+                "keyvault": {
+                  "connectionId": "[resourceId('Microsoft.Web/connections', 'keyvault')]",
+                  "connectionName": "keyvault",
+                  "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/keyvault')]",
+                  "connectionProperties": {
+                    "authentication": {
+                      "type": "ManagedServiceIdentity"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "state": "Enabled"
+        },
+        "dependsOn": []
+      },
+      {
+        "type": "Microsoft.KeyVault/vaults",
+        "apiVersion": "2022-07-01",
+        "name": "rps-kv",
+        "location": "[resourceGroup().location]",
+        "properties": {
+          "tenantId": "[subscription().tenantId]",
+          "sku": {
+            "family": "A",
+            "name": "standard"
+          },
+          "accessPolicies": [
+            {
+              "tenantId": "[subscription().tenantId]",
+              "objectId": "[reference(resourceId('Microsoft.Logic/workflows', 'rps-alert-playbook'), '2019-05-01', 'Full').identity.principalId]",
+              "permissions": {
+                "secrets": [
+                  "get",
+                  "list",
+                  "set"
+                ]
+              }
+            }
+          ],
+          "publicNetworkAccess": "Enabled"
+        },
+        "dependsOn": [
+          "[resourceId('Microsoft.Logic/workflows', 'rps-alert-playbook')]"
+        ]
+      },
+      {
+        "type": "Microsoft.KeyVault/vaults/secrets",
+        "apiVersion": "2021-04-01-preview",
+        "name": "[concat('rps-kv', '/', 'Client-Id')]",
+        "properties": {
+          "value": "[parameters('clientId')]"
+        },
+        "dependsOn": [
+          "[resourceId('Microsoft.KeyVault/vaults', 'rps-kv')]"
+        ]
+      },
+      {
+        "type": "Microsoft.KeyVault/vaults/secrets",
+        "apiVersion": "2021-04-01-preview",
+        "name": "[concat('rps-kv', '/', 'Client-Secret')]",
+        "properties": {
+          "value": "[parameters('clientSecret')]"
+        },
+        "dependsOn": [
+          "[resourceId('Microsoft.KeyVault/vaults', 'rps-kv')]"
+        ]
+      },
+      {
+        "kind": "V1",
+        "properties": {
+          "displayName": "keyvault",
+          "authenticatedUser": {},
+          "overallStatus": "Ready",
+          "statuses": [
+            {
+              "status": "Ready"
+            }
+          ],
+          "connectionState": "Enabled",
+          "parameterValueSet": {
+            "name": "oauthMI",
+            "values": {
+              "vaultName": {
+                "value": "rps-kv"
+              }
+            }
+          },
+          "customParameterValues": {},
+          "api": {
+            "name": "keyvault",
+            "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/keyvault')]",
+            "type": "Microsoft.Web/locations/managedApis"
+          },
+          "testLinks": [],
+          "testRequests": []
+        },
+        "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Web/connections/keyvault')]",
+        "name": "keyvault",
+        "type": "Microsoft.Web/connections",
+        "location": "[resourceGroup().location]",
+        "tags": {
+          "creator": "bavinash"
+        },
+        "apiVersion": "2018-07-01-preview"
+      }
+    ]
+  }

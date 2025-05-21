@@ -1,0 +1,49 @@
+{
+    "id": "NetAppRPS_DataConnector",
+    "name": "NetApp RPS Data Connector",
+    "description": "Ingests logs and alerts from NetApp RPS into Azure Sentinel.",
+    "dataTypes": [
+        {
+            "name": "rps_alerts_CL",
+            "lastDataReceivedQuery": "rps_alerts_CL | where TimeGenerated > ago(1h)"
+        }
+    ],
+    "connectivityCriteria": [
+        {
+            "type": "HasDataConnectors"
+        }
+    ],
+    "permissions": {
+        "resourceProvider": [
+            {
+                "provider": "Microsoft.OperationalInsights/workspaces",
+                "permissionsDisplayText": "Read and write permissions to the workspace",
+                "providerDisplayName": "Log Analytics",
+                "requiredPermissions": {
+                    "read": true,
+                    "write": true
+                }
+            }
+        ]
+    },
+    "instructionSteps": [
+        {
+            "title": "Configure Data Collection Endpoint",
+            "description": "Ensure the Data Collection Endpoint (DCE) is properly configured.",
+            "instructions": [
+                "Navigate to the Azure portal.",
+                "Go to the Data Collection Endpoint resource: `rps-alerts-dce`.",
+                "Verify the endpoint is active and accessible."
+            ]
+        },
+        {
+            "title": "Configure Data Collection Rule",
+            "description": "Ensure the Data Collection Rule (DCR) is properly configured.",
+            "instructions": [
+                "Navigate to the Azure portal.",
+                "Go to the Data Collection Rule resource: `rps-alerts-dcr`.",
+                "Verify the rule is linked to the correct Log Analytics workspace."
+            ]
+        }
+    ]
+}
