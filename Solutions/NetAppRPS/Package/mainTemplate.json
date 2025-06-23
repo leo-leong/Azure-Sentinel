@@ -1,0 +1,571 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "author": "Avinash - bavinash@netapp.com",
+    "comments": "Solution template for NetAppRPS"
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "minLength": 1,
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Not used, but needed to pass arm-ttk test `Location-Should-Not-Be-Hardcoded`.  We instead use the `workspace-location` which is derived from the LA workspace"
+      }
+    },
+    "workspace-location": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "[concat('Region to deploy solution resources -- separate from location selection',parameters('location'))]"
+      }
+    },
+    "workspace": {
+      "defaultValue": "",
+      "type": "string",
+      "metadata": {
+        "description": "Workspace name for Log Analytics where Microsoft Sentinel is setup"
+      }
+    }
+  },
+  "variables": {
+    "email": "bavinash@netapp.com",
+    "_email": "[variables('email')]",
+    "_solutionName": "NetAppRPS",
+    "_solutionVersion": "3.0.0",
+    "solutionId": "azuresentinel.azure-sentinel-netapprps",
+    "_solutionId": "[variables('solutionId')]",
+    "dataConnectorContentId1": "NetAppRPS_DataConnector",
+    "_dataConnectorContentId1": "[variables('dataConnectorContentId1')]",
+    "dataConnectorId1": "[extensionResourceId(resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspace')), 'Microsoft.SecurityInsights/dataConnectors', variables('_dataConnectorContentId1'))]",
+    "_dataConnectorId1": "[variables('dataConnectorId1')]",
+    "dataConnectorTemplateSpecName1": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/',concat(parameters('workspace'),'-dc-',uniquestring(variables('_dataConnectorContentId1'))))]",
+    "dataConnectorVersion1": "1.0.0",
+    "_dataConnectorcontentProductId1": "[concat(take(variables('_solutionId'),50),'-','dc','-', uniqueString(concat(variables('_solutionId'),'-','DataConnector','-',variables('_dataConnectorContentId1'),'-', variables('dataConnectorVersion1'))))]",
+    "Playbooks": "Playbooks",
+    "_Playbooks": "[variables('Playbooks')]",
+    "TemplateEmptyArray": "[json('[]')]",
+    "playbookVersion1": "1.0",
+    "playbookContentId1": "Playbooks",
+    "_playbookContentId1": "[variables('playbookContentId1')]",
+    "playbookId1": "[resourceId('Microsoft.Logic/workflows', variables('playbookContentId1'))]",
+    "playbookTemplateSpecName1": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/',concat(parameters('workspace'),'-pl-',uniquestring(variables('_playbookContentId1'))))]",
+    "workspaceResourceId": "[resourceId('microsoft.OperationalInsights/Workspaces', parameters('workspace'))]",
+    "_playbookcontentProductId1": "[concat(take(variables('_solutionId'),50),'-','pl','-', uniqueString(concat(variables('_solutionId'),'-','Playbook','-',variables('_playbookContentId1'),'-', variables('playbookVersion1'))))]",
+    "_solutioncontentProductId": "[concat(take(variables('_solutionId'),50),'-','sl','-', uniqueString(concat(variables('_solutionId'),'-','Solution','-',variables('_solutionId'),'-', variables('_solutionVersion'))))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces/providers/contentTemplates",
+      "apiVersion": "2023-04-01-preview",
+      "name": "[variables('dataConnectorTemplateSpecName1')]",
+      "location": "[parameters('workspace-location')]",
+      "dependsOn": [
+        "[extensionResourceId(resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspace')), 'Microsoft.SecurityInsights/contentPackages', variables('_solutionId'))]"
+      ],
+      "properties": {
+        "description": "NetAppRPS data connector with template version 3.0.0",
+        "mainTemplate": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "[variables('dataConnectorVersion1')]",
+          "parameters": {},
+          "variables": {},
+          "resources": [
+            {
+              "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/',variables('_dataConnectorContentId1'))]",
+              "apiVersion": "2021-03-01-preview",
+              "type": "Microsoft.OperationalInsights/workspaces/providers/dataConnectors",
+              "location": "[parameters('workspace-location')]",
+              "kind": "GenericUI",
+              "properties": {
+                "connectorUiConfig": {
+                  "id": "[variables('_uiConfigId1')]",
+                  "name": "NetApp RPS Data Connector",
+                  "description": "Ingests logs and alerts from NetApp RPS into Azure Sentinel.",
+                  "dataTypes": [
+                    {
+                      "name": "rps_alerts_CL",
+                      "lastDataReceivedQuery": "rps_alerts_CL | where TimeGenerated > ago(1h)"
+                    }
+                  ],
+                  "connectivityCriteria": [
+                    {
+                      "type": "HasDataConnectors"
+                    }
+                  ],
+                  "permissions": {
+                    "resourceProvider": [
+                      {
+                        "provider": "Microsoft.OperationalInsights/workspaces",
+                        "permissionsDisplayText": "Read and write permissions to the workspace",
+                        "providerDisplayName": "Log Analytics",
+                        "requiredPermissions": {
+                          "read": true,
+                          "write": true
+                        }
+                      }
+                    ]
+                  },
+                  "availability": {
+                    "status": 1,
+                    "isPreview": false
+                  },
+                  "instructionSteps": [
+                    {
+                      "description": "Ensure the Data Collection Endpoint (DCE) is properly configured.",
+                      "instructions": [
+                        "Navigate to the Azure portal.",
+                        "Go to the Data Collection Endpoint resource: `rps-alerts-dce`.",
+                        "Verify the endpoint is active and accessible."
+                      ],
+                      "title": "Configure Data Collection Endpoint"
+                    },
+                    {
+                      "description": "Ensure the Data Collection Rule (DCR) is properly configured.",
+                      "instructions": [
+                        "Navigate to the Azure portal.",
+                        "Go to the Data Collection Rule resource: `rps-alerts-dcr`.",
+                        "Verify the rule is linked to the correct Log Analytics workspace."
+                      ],
+                      "title": "Configure Data Collection Rule"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "type": "Microsoft.OperationalInsights/workspaces/providers/metadata",
+              "apiVersion": "2023-04-01-preview",
+              "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/',concat('DataConnector-', last(split(variables('_dataConnectorId1'),'/'))))]",
+              "properties": {
+                "parentId": "[extensionResourceId(resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspace')), 'Microsoft.SecurityInsights/dataConnectors', variables('_dataConnectorContentId1'))]",
+                "contentId": "[variables('_dataConnectorContentId1')]",
+                "kind": "DataConnector",
+                "version": "[variables('dataConnectorVersion1')]",
+                "source": {
+                  "kind": "Solution",
+                  "name": "NetAppRPS",
+                  "sourceId": "[variables('_solutionId')]"
+                },
+                "author": {
+                  "name": "Avinash",
+                  "email": "[variables('_email')]"
+                },
+                "support": {
+                  "tier": "Microsoft",
+                  "name": "Microsoft Corporation",
+                  "email": "support@microsoft.com",
+                  "link": "https://support.microsoft.com/"
+                }
+              }
+            }
+          ]
+        },
+        "packageKind": "Solution",
+        "packageVersion": "[variables('_solutionVersion')]",
+        "packageName": "[variables('_solutionName')]",
+        "packageId": "[variables('_solutionId')]",
+        "contentSchemaVersion": "3.0.0",
+        "contentId": "[variables('_dataConnectorContentId1')]",
+        "contentKind": "DataConnector",
+        "displayName": null,
+        "contentProductId": "[variables('_dataConnectorcontentProductId1')]",
+        "id": "[variables('_dataConnectorcontentProductId1')]",
+        "version": "[variables('dataConnectorVersion1')]"
+      }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces/providers/metadata",
+      "apiVersion": "2023-04-01-preview",
+      "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/',concat('DataConnector-', last(split(variables('_dataConnectorId1'),'/'))))]",
+      "dependsOn": [
+        "[variables('_dataConnectorId1')]"
+      ],
+      "location": "[parameters('workspace-location')]",
+      "properties": {
+        "parentId": "[extensionResourceId(resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspace')), 'Microsoft.SecurityInsights/dataConnectors', variables('_dataConnectorContentId1'))]",
+        "contentId": "[variables('_dataConnectorContentId1')]",
+        "kind": "DataConnector",
+        "version": "[variables('dataConnectorVersion1')]",
+        "source": {
+          "kind": "Solution",
+          "name": "NetAppRPS",
+          "sourceId": "[variables('_solutionId')]"
+        },
+        "author": {
+          "name": "Avinash",
+          "email": "[variables('_email')]"
+        },
+        "support": {
+          "tier": "Microsoft",
+          "name": "Microsoft Corporation",
+          "email": "support@microsoft.com",
+          "link": "https://support.microsoft.com/"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces/providers/contentTemplates",
+      "apiVersion": "2023-04-01-preview",
+      "name": "[variables('playbookTemplateSpecName1')]",
+      "location": "[parameters('workspace-location')]",
+      "dependsOn": [
+        "[extensionResourceId(resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspace')), 'Microsoft.SecurityInsights/contentPackages', variables('_solutionId'))]"
+      ],
+      "properties": {
+        "description": "Playbooks Playbook with template version 3.0.0",
+        "mainTemplate": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "[variables('playbookVersion1')]",
+          "parameters": {
+            "clientId": {
+              "type": "securestring",
+              "metadata": {
+                "description": "Specifies the Client ID of the App registration to be used."
+              }
+            },
+            "clientSecret": {
+              "type": "securestring",
+              "metadata": {
+                "description": "Specifies the Client Secret of the App registration to be used."
+              }
+            }
+          },
+          "variables": {
+            "workspace-location-inline": "[concat('[resourceGroup().locatio', 'n]')]",
+            "workspace-name": "[parameters('workspace')]",
+            "workspaceResourceId": "[[resourceId('microsoft.OperationalInsights/Workspaces', variables('workspace-name'))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Logic/workflows",
+              "apiVersion": "2019-05-01",
+              "name": "rps-alert-playbook",
+              "location": "[[variables('workspace-location-inline')]",
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "definition": {
+                  "$schema": "https://schema.management.azure.com/schemas/2016-06-01/microsoft.logic/workflows.json",
+                  "contentVersion": "1.0.0.0",
+                  "triggers": {
+                    "Manual": {
+                      "type": "Request",
+                      "kind": "Http"
+                    }
+                  },
+                  "actions": {
+                    "LogToConsole": {
+                      "type": "Compose",
+                      "inputs": "High-rps-rule-one alert triggered! (Test Playbook)"
+                    },
+                    "Get_Client_Id": {
+                      "type": "ApiConnection",
+                      "inputs": {
+                        "host": {
+                          "connection": {
+                            "name": "@parameters('$connections')['keyvault']['connectionId']"
+                          }
+                        },
+                        "method": "get",
+                        "path": "/secrets/Client-Id/value"
+                      }
+                    },
+                    "Get_Client_Secret": {
+                      "type": "ApiConnection",
+                      "inputs": {
+                        "host": {
+                          "connection": {
+                            "name": "@parameters('$connections')['keyvault']['connectionId']"
+                          }
+                        },
+                        "method": "get",
+                        "path": "/secrets/Client-Secret/value"
+                      },
+                      "runAfter": {
+                        "Get_Client_Id": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "Call_API": {
+                      "type": "Http",
+                      "inputs": {
+                        "method": "POST",
+                        "uri": "https://staging-netapp-cloud-account.auth0.com/oauth/token",
+                        "headers": {
+                          "Content-Type": "application/json"
+                        },
+                        "body": {
+                          "grant_type": "client_credentials",
+                          "audience": "https://api.cloud.netapp.com",
+                          "client_id": "@body('Get_Client_Id').value",
+                          "client_secret": "@body('Get_Client_Secret').value"
+                        }
+                      },
+                      "runAfter": {
+                        "Get_Client_Secret": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "Call_API_Rps": {
+                      "type": "Http",
+                      "inputs": {
+                        "method": "GET",
+                        "uri": "https://staging.snapcenter.cloudmanager.cloud.netapp.com/rps/v1/account/weyfg/connectors",
+                        "headers": {
+                          "Authorization": "@concat('Bearer ', body('Call_API')['access_token'])",
+                          "Content-Type": "application/json"
+                        },
+                        "query": {
+                          "discovered": "false"
+                        }
+                      },
+                      "runAfter": {
+                        "Call_API": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "Log_New_API_Response": {
+                      "type": "Compose",
+                      "inputs": "@body('Call_API_Rps')",
+                      "runAfter": {
+                        "Call_API_Rps": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "Log_API_Response": {
+                      "type": "Compose",
+                      "inputs": "@body('Call_API')",
+                      "runAfter": {
+                        "Call_API": [
+                          "Succeeded"
+                        ]
+                      }
+                    }
+                  },
+                  "parameters": {
+                    "$connections": {
+                      "type": "Object"
+                    }
+                  }
+                },
+                "parameters": {
+                  "$connections": {
+                    "value": {
+                      "keyvault": {
+                        "connectionId": "[[resourceId('Microsoft.Web/connections', 'keyvault')]",
+                        "connectionName": "keyvault",
+                        "id": "[[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', variables('workspace-location-inline'), '/managedApis/keyvault')]",
+                        "connectionProperties": {
+                          "authentication": {
+                            "type": "ManagedServiceIdentity"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "state": "Enabled"
+              },
+              "dependsOn": "[variables('TemplateEmptyArray')]",
+              "tags": {
+                "hidden-SentinelWorkspaceId": "[[variables('workspaceResourceId')]"
+              }
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults",
+              "apiVersion": "2022-07-01",
+              "name": "rps-kv",
+              "location": "[[variables('workspace-location-inline')]",
+              "properties": {
+                "tenantId": "[[subscription().tenantId]",
+                "sku": {
+                  "family": "A",
+                  "name": "standard"
+                },
+                "accessPolicies": [
+                  {
+                    "tenantId": "[[subscription().tenantId]",
+                    "objectId": "[[reference(resourceId('Microsoft.Logic/workflows', 'rps-alert-playbook'), '2019-05-01', 'Full').identity.principalId]",
+                    "permissions": {
+                      "secrets": [
+                        "get",
+                        "list",
+                        "set"
+                      ]
+                    }
+                  }
+                ],
+                "publicNetworkAccess": "Enabled"
+              },
+              "dependsOn": [
+                "[[resourceId('Microsoft.Logic/workflows', 'rps-alert-playbook')]"
+              ]
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2021-04-01-preview",
+              "name": "[[concat('rps-kv', '/', 'Client-Id')]",
+              "properties": {
+                "value": "[[parameters('clientId')]"
+              },
+              "dependsOn": [
+                "[[resourceId('Microsoft.KeyVault/vaults', 'rps-kv')]"
+              ]
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2021-04-01-preview",
+              "name": "[[concat('rps-kv', '/', 'Client-Secret')]",
+              "properties": {
+                "value": "[[parameters('clientSecret')]"
+              },
+              "dependsOn": [
+                "[[resourceId('Microsoft.KeyVault/vaults', 'rps-kv')]"
+              ]
+            },
+            {
+              "kind": "V1",
+              "properties": {
+                "displayName": "keyvault",
+                "overallStatus": "Ready",
+                "statuses": [
+                  {
+                    "status": "Ready"
+                  }
+                ],
+                "connectionState": "Enabled",
+                "parameterValueSet": {
+                  "name": "oauthMI",
+                  "values": {
+                    "vaultName": {
+                      "value": "rps-kv"
+                    }
+                  }
+                },
+                "api": {
+                  "name": "keyvault",
+                  "id": "[[variables('_connection-5')]",
+                  "type": "Microsoft.Web/locations/managedApis"
+                },
+                "testLinks": "[variables('TemplateEmptyArray')]",
+                "testRequests": "[variables('TemplateEmptyArray')]"
+              },
+              "id": "[[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Web/connections/keyvault')]",
+              "name": "keyvault",
+              "type": "Microsoft.Web/connections",
+              "location": "[[variables('workspace-location-inline')]",
+              "tags": {
+                "creator": "bavinash"
+              },
+              "apiVersion": "2018-07-01-preview"
+            },
+            {
+              "type": "Microsoft.OperationalInsights/workspaces/providers/metadata",
+              "apiVersion": "2022-01-01-preview",
+              "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/',concat('Playbook-', last(split(variables('playbookId1'),'/'))))]",
+              "properties": {
+                "parentId": "[variables('playbookId1')]",
+                "contentId": "[variables('_playbookContentId1')]",
+                "kind": "Playbook",
+                "version": "[variables('playbookVersion1')]",
+                "source": {
+                  "kind": "Solution",
+                  "name": "NetAppRPS",
+                  "sourceId": "[variables('_solutionId')]"
+                },
+                "author": {
+                  "name": "Avinash",
+                  "email": "[variables('_email')]"
+                },
+                "support": {
+                  "tier": "Microsoft",
+                  "name": "Microsoft Corporation",
+                  "email": "support@microsoft.com",
+                  "link": "https://support.microsoft.com/"
+                }
+              }
+            }
+          ]
+        },
+        "packageKind": "Solution",
+        "packageVersion": "[variables('_solutionVersion')]",
+        "packageName": "[variables('_solutionName')]",
+        "packageId": "[variables('_solutionId')]",
+        "contentSchemaVersion": "3.0.0",
+        "contentId": "[variables('_playbookContentId1')]",
+        "contentKind": "Playbook",
+        "displayName": "Playbooks",
+        "contentProductId": "[variables('_playbookcontentProductId1')]",
+        "id": "[variables('_playbookcontentProductId1')]",
+        "version": "[variables('playbookVersion1')]"
+      }
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces/providers/contentPackages",
+      "apiVersion": "2023-04-01-preview",
+      "location": "[parameters('workspace-location')]",
+      "properties": {
+        "version": "3.0.0",
+        "kind": "Solution",
+        "contentSchemaVersion": "3.0.0",
+        "displayName": "NetAppRPS",
+        "publisherDisplayName": "Microsoft Sentinel, Microsoft Corporation",
+        "descriptionHtml": "<p><strong>Note:</strong> Please refer to the following before installing the solution:</p>\n<p>• Review the solution <a href=\"https://github.com/Azure/Azure-Sentinel/tree/master/Solutions/NetAppRPS/ReleaseNotes.md\">Release Notes</a></p>\n<p>• There may be <a href=\"https://aka.ms/sentinelsolutionsknownissues\">known issues</a> pertaining to this Solution, please refer to them before installing.</p>\n<p>NetAppRPS</p>\n<p><strong>Data Connectors:</strong> 1, <strong>Playbooks:</strong> 1</p>\n<p><a href=\"https://aka.ms/azuresentinel\">Learn more about Microsoft Sentinel</a> | <a href=\"https://aka.ms/azuresentinelsolutionsdoc\">Learn more about Solutions</a></p>\n",
+        "contentKind": "Solution",
+        "contentProductId": "[variables('_solutioncontentProductId')]",
+        "id": "[variables('_solutioncontentProductId')]",
+        "icon": "<svg width=\"112\" height=\"20\" viewBox=\"0 0 112 20\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" id=\"logo\" style=\"margin-bottom: 60px;\"><g clip-path=\"url(#clip0_574_17087)\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M108.136 11.0524V11.0132C108.136 9.14993 106.718 7.91269 105.042 7.91269C103.365 7.91269 101.972 9.14869 101.972 11.0132V11.0542C101.972 12.9175 103.368 14.1597 105.042 14.1597C106.715 14.1597 108.136 12.9387 108.136 11.0524ZM98.4301 5.41586H102.021V7.03073C102.459 6.45657 103.049 5.98961 103.737 5.67176C104.425 5.35391 105.19 5.19512 105.963 5.20965C108.916 5.20965 111.724 7.26302 111.724 11.0132V11.0542C111.724 14.8057 108.962 16.859 105.963 16.859C105.207 16.8741 104.457 16.7304 103.773 16.4394C103.089 16.1484 102.489 15.7179 102.021 15.1821V20.0006H98.4301V5.41586Z\" fill=\"black\"></path><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M27.1606 1.87695H30.517L38.2617 11.0121V1.87695H41.8475V16.6499H38.7548L30.7526 7.32278V16.6499H27.1606V1.87695Z\" fill=\"black\"></path><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M52.5221 10.1524C52.3107 8.72385 51.3656 7.76238 49.8558 7.76238C48.366 7.76238 47.3969 8.70956 47.1145 10.1524H52.5221ZM43.5962 11.0958V11.053C43.5644 10.2945 43.703 9.53815 44.0035 8.82921C44.3041 8.12027 44.7604 7.47342 45.3451 6.92748C45.9298 6.38155 46.6308 5.9478 47.4061 5.65228C48.1814 5.35677 49.0149 5.20557 49.8565 5.20779C54.0822 5.20779 56.0177 8.12013 56.0177 11.3058C56.0177 11.5542 55.9964 11.8511 55.9702 12.1436H47.1613C47.281 12.7921 47.6646 13.3769 48.237 13.784C48.8094 14.191 49.5295 14.391 50.2567 14.3448C50.8287 14.3523 51.3963 14.2538 51.9244 14.0554C52.4525 13.857 52.9297 13.5629 53.3266 13.1914L55.3792 14.8063C54.7561 15.4916 53.9654 16.0374 53.0691 16.401C52.1728 16.7646 51.1954 16.936 50.2133 16.9019C46.4064 16.8994 43.5962 14.5324 43.5962 11.0958V11.0958Z\" fill=\"black\"></path><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M58.2596 8.14001H56.7484V5.41648H58.2596V2.54761H61.8468V5.41648H64.8251V8.14001H61.8468V12.9393C61.8468 13.6728 62.2028 14.0299 63.0046 14.0299C63.6233 14.0328 64.2329 13.8951 64.7769 13.6293V16.187C63.9162 16.6371 62.9336 16.8622 61.939 16.8373C59.7453 16.8373 58.2589 16.0609 58.2589 13.4622L58.2596 8.14001Z\" fill=\"black\"></path><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M93.3768 11.0524V11.0133C93.3768 9.14997 91.9593 7.91273 90.2848 7.91273C88.6104 7.91273 87.2163 9.14873 87.2163 11.0133V11.0543C87.2163 12.9176 88.609 14.1598 90.2848 14.1598C91.9607 14.1598 93.3768 12.9387 93.3768 11.0524ZM83.6739 5.4159H87.2631V7.03077C87.7016 6.45636 88.2915 5.98922 88.9798 5.67135C89.6682 5.35348 90.4333 5.19484 91.2064 5.2097C94.1592 5.2097 96.9674 7.26306 96.9674 11.0133V11.0543C96.9674 14.8057 94.2054 16.8591 91.2064 16.8591C90.45 16.874 89.7001 16.7303 89.0158 16.4392C88.3315 16.1482 87.7315 15.7179 87.2631 15.1821V20.0006H83.6739V5.4159Z\" fill=\"black\"></path><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M76.387 10.5108L74.1912 5.75254L71.9939 10.5133L76.387 10.5108ZM72.6028 1.875H75.8704L82.7775 16.6492H78.9892L77.467 13.3573H70.9133L69.4014 16.6492H65.6957L72.6028 1.875Z\" fill=\"black\"></path><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M0 16.877H7.5095V7.87695H11.8008V16.877H19.3103V1.87695H0V16.877Z\" fill=\"black\"></path></g><defs><clipPath id=\"clip0_574_17087\"><rect width=\"111.724\" height=\"20\" fill=\"white\"></rect></clipPath></defs></svg>",
+        "contentId": "[variables('_solutionId')]",
+        "parentId": "[variables('_solutionId')]",
+        "source": {
+          "kind": "Solution",
+          "name": "NetAppRPS",
+          "sourceId": "[variables('_solutionId')]"
+        },
+        "author": {
+          "name": "Avinash",
+          "email": "[variables('_email')]"
+        },
+        "support": {
+          "name": "Microsoft Corporation",
+          "email": "support@microsoft.com",
+          "tier": "Microsoft",
+          "link": "https://support.microsoft.com/"
+        },
+        "dependencies": {
+          "operator": "AND",
+          "criteria": [
+            {
+              "kind": "DataConnector",
+              "contentId": "[variables('_dataConnectorContentId1')]",
+              "version": "[variables('dataConnectorVersion1')]"
+            },
+            {
+              "kind": "Playbook",
+              "contentId": "[variables('_Playbooks')]",
+              "version": "[variables('playbookVersion1')]"
+            }
+          ]
+        },
+        "firstPublishDate": "2025-03-31",
+        "providers": [
+          "NetApp"
+        ],
+        "categories": {
+          "domains": [
+            "Security - Threat Protection"
+          ]
+        }
+      },
+      "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/', variables('_solutionId'))]"
+    }
+  ],
+  "outputs": {}
+}

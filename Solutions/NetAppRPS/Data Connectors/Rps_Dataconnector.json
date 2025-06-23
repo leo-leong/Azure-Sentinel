@@ -26,6 +26,10 @@
             }
         ]
     },
+    "availability": {
+        "status": 1,
+        "isPreview": false
+    },
     "instructionSteps": [
         {
             "title": "Configure Data Collection Endpoint",
